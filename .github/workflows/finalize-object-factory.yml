@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   finalize:
-    if: github.event.head_commit.message == 'Trigger Object Factory finalizer icons'
+    if: github.event.head_commit.message == 'Trigger Object Factory finalizer robust'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,11 +21,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          SNAP=f817f11a0868f0c3577909edd226aee5e0e7fee6
-          mkdir -p icons
-          for name in E N S W bird camera firetruck fuel hazard helicopter medical; do
-            git show "$SNAP:icon_data/${name}.png.b64" | tr -d '\r\n' | base64 -d > "icons/${name}.png"
-          done
+          python - <<'PY'
+          from pathlib import Path
+          import base64, subprocess
+          snap = 'f817f11a0868f0c3577909edd226aee5e0e7fee6'
+          names = ['E','N','S','W','bird','camera','firetruck','fuel','hazard','helicopter','medical']
+          Path('icons').mkdir(exist_ok=True)
+          legal = set('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=')
+          for name in names:
+              raw = subprocess.check_output(['git','show',f'{snap}:icon_data/{name}.png.b64'])
+              text = raw.decode('utf-8', errors='ignore')
+              clean = ''.join(ch for ch in text if ch in legal)
+              pad = (-len(clean)) % 4
+              clean += '=' * pad
+              data = base64.b64decode(clean, validate=False)
+              Path('icons', f'{name}.png').write_bytes(data)
+          PY
           cat > /tmp/icon-sha256.txt <<'EOF'
           d121eadd22d0ca1bf65d5d4134d36c65ad2c3525ce6db76297e67c28b2006d9d  icons/E.png
           5068fad4a5f924f40b3d9b5a7ad1e967e32ef254088c563695138ed8eb9cfbcc  icons/N.png
