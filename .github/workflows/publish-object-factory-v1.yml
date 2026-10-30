@@ -1,0 +1,49 @@
+name: Publish Object Factory v1.0
+
+on:
+  push:
+    branches:
+      - release-object-factory-v1
+    paths:
+      - .release_chunks/READY
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release-object-factory-v1
+          fetch-depth: 0
+
+      - name: Reconstruct and verify release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p releases docs legacy/Object_Factory_pre1
+          cat .release_chunks/zip_* | base64 -d > releases/ArcGIS_Earth_Object_Factory_v1.0.zip
+          echo "4808f2a97a30466d42a81a246b4ce621af444348209305749eb057cd466e22c3  releases/ArcGIS_Earth_Object_Factory_v1.0.zip" | sha256sum -c -
+          cat .release_chunks/pdf_* | base64 -d > docs/ArcGIS_Earth_Object_Factory_v1.0_User_Manual.pdf
+          echo "590d96c7ceaa58e69cb3f384fedd8c96cb98b2a4e4218e8891f5ed1c2adcd5c6  docs/ArcGIS_Earth_Object_Factory_v1.0_User_Manual.pdf" | sha256sum -c -
+          unzip -p releases/ArcGIS_Earth_Object_Factory_v1.0.zip Object_Factory_v1.0/Object_Factory_v1.0.py > Object_Factory_v1.0.py
+          if [ -f Object_Factory_v0.2_TEST.py ]; then
+            mv Object_Factory_v0.2_TEST.py legacy/Object_Factory_pre1/Object_Factory_v0.2_TEST.py
+          fi
+          unzip -p releases/ArcGIS_Earth_Object_Factory_v1.0.zip Object_Factory_v1.0/sample_objects.txt > sample_objects.txt
+          unzip -p releases/ArcGIS_Earth_Object_Factory_v1.0.zip Object_Factory_v1.0/simple_objects.txt > simple_objects.txt
+          printf '%s  %s\n' "4808f2a97a30466d42a81a246b4ce621af444348209305749eb057cd466e22c3" "ArcGIS_Earth_Object_Factory_v1.0.zip" > releases/SHA256SUMS.txt
+          rm -rf .release_chunks
+          rm -f .github/workflows/publish-object-factory-v1.yml
+
+      - name: Commit verified v1.0 assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Jim Gaddy"
+          git config user.email "jimgdc95811@gmail.com"
+          git add -A
+          git commit -m "Publish verified Object Factory v1.0 assets"
+          git push origin HEAD:release-object-factory-v1
