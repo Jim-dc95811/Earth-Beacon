@@ -2,71 +2,57 @@ name: Finalize Object Factory GitHub
 
 on:
   push:
-    branches: [github-finalize]
-    paths: [.github/FINALIZE_OBJECT_FACTORY]
+    branches:
+      - github-finalize
 
 permissions:
   contents: write
 
 jobs:
   finalize:
+    if: github.event.head_commit.message == 'Trigger Object Factory finalizer retry'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: github-finalize
           fetch-depth: 0
 
-      - name: Restore and verify exact accepted preset icons
-        shell: bash
+      - name: Restore exact preset icon archive
         run: |
           set -euo pipefail
-          git show b46917ec9da0cf27a4ca0521335fe91928ee9209:.release_icons_00 | tr -d '\n' | base64 -d > /tmp/object_factory_icons.zip
-          echo 'a14761721e0c7dcf58d7baf6838eabce3e4a349a7142955c86bf8a704eb6a1c7  /tmp/object_factory_icons.zip' | sha256sum -c -
-          rm -rf /tmp/object_factory_icons icons
-          mkdir -p /tmp/object_factory_icons
-          unzip -q /tmp/object_factory_icons.zip -d /tmp/object_factory_icons
-          cp -a /tmp/object_factory_icons/icons ./icons
-          for name in object helicopter fuel bird hazard home staging water firetruck camera medical N E S W; do
-            test -f "icons/${name}.png" || { echo "Missing ${name}.png"; exit 1; }
-          done
+          git show b46917ec9da0cf27a4ca0521335fe91928ee9209:.release_icons_00 | tr -d '\n' | base64 -d > /tmp/icons.zip
+          echo 'a14761721e0c7dcf58d7baf6838eabce3e4a349a7142955c86bf8a704eb6a1c7  /tmp/icons.zip' | sha256sum -c -
+          rm -rf icons /tmp/icons_restore
+          mkdir -p /tmp/icons_restore
+          unzip -q /tmp/icons.zip -d /tmp/icons_restore
+          cp -a /tmp/icons_restore/icons ./icons
           test "$(find icons -maxdepth 1 -type f -name '*.png' | wc -l)" -eq 15
 
-      - name: Verify accepted v1.0 source
-        shell: bash
+      - name: Verify accepted source
         run: |
           set -euo pipefail
           echo 'e77e1866e7a87b9824ed6bb1cd0f830f52adb1a2872efe48ede13a581018aa00  Object_Factory_v1.0.py' | sha256sum -c -
           python -m py_compile Object_Factory_v1.0.py
 
-      - name: Build complete v1.0 operator package
-        shell: bash
+      - name: Build complete operator package
         run: |
           set -euo pipefail
           rm -rf /tmp/Object_Factory_v1.0
-          mkdir -p /tmp/Object_Factory_v1.0/icons
+          mkdir -p /tmp/Object_Factory_v1.0/icons releases
           cp Object_Factory_v1.0.py Run_Object_Factory.bat sample_objects.txt simple_objects.txt /tmp/Object_Factory_v1.0/
           cp icons/*.png /tmp/Object_Factory_v1.0/icons/
           cp docs/OBJECT_FACTORY_GUIDE.md /tmp/Object_Factory_v1.0/README.md
           cp docs/ArcGIS_Earth_Object_Factory_v1.0_User_Manual.pdf /tmp/Object_Factory_v1.0/
-          cat > /tmp/Object_Factory_v1.0/RELEASE_VERIFICATION.txt <<'EOF'
-ArcGIS Earth Object Factory v1.0
-Commissioned 2026-10-29
-
-Accepted source SHA-256:
-e77e1866e7a87b9824ed6bb1cd0f830f52adb1a2872efe48ede13a581018aa00
-
-This package was rebuilt on GitHub from the exact accepted v1.0 source and the exact accepted 15-file preset/Sky-Compass PNG archive. The Python source was checksum-verified before packaging.
-EOF
-          mkdir -p releases
+          printf '%s\n' 'ArcGIS Earth Object Factory v1.0' 'Commissioned 2026-10-29' '' 'Accepted source SHA-256:' 'e77e1866e7a87b9824ed6bb1cd0f830f52adb1a2872efe48ede13a581018aa00' '' 'Package rebuilt from the exact accepted v1.0 source and exact accepted 15-file PNG archive.' > /tmp/Object_Factory_v1.0/RELEASE_VERIFICATION.txt
           rm -f releases/ArcGIS_Earth_Object_Factory_v1.0.zip releases/SHA256SUMS.txt
-          (cd /tmp && zip -qr "$GITHUB_WORKSPACE/releases/ArcGIS_Earth_Object_Factory_v1.0.zip" Object_Factory_v1.0)
-          sha256sum releases/ArcGIS_Earth_Object_Factory_v1.0.zip docs/ArcGIS_Earth_Object_Factory_v1.0_User_Manual.pdf Object_Factory_v1.0.py > releases/SHA256SUMS.txt
+          cd /tmp
+          zip -qr "$GITHUB_WORKSPACE/releases/ArcGIS_Earth_Object_Factory_v1.0.zip" Object_Factory_v1.0
+          cd "$GITHUB_WORKSPACE"
           unzip -t releases/ArcGIS_Earth_Object_Factory_v1.0.zip >/dev/null
           test "$(unzip -Z1 releases/ArcGIS_Earth_Object_Factory_v1.0.zip | grep -E '/icons/[^/]+\.png$' | wc -l)" -eq 15
+          sha256sum releases/ArcGIS_Earth_Object_Factory_v1.0.zip docs/ArcGIS_Earth_Object_Factory_v1.0_User_Manual.pdf Object_Factory_v1.0.py > releases/SHA256SUMS.txt
 
-      - name: Remove commissioning debris and commit finished repository
-        shell: bash
+      - name: Clean temporary commissioning files and commit
         run: |
           set -euo pipefail
           rm -rf .release_chunks .release_exact
