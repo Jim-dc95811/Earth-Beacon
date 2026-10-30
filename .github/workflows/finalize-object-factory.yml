@@ -10,34 +10,41 @@ permissions:
 
 jobs:
   finalize:
-    if: github.event.head_commit.message == 'Trigger Object Factory finalizer final'
+    if: github.event.head_commit.message == 'Trigger Object Factory finalizer icons'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Restore exact accepted preset icon archive
+      - name: Restore and verify exact 15-icon set
         shell: bash
         run: |
           set -euo pipefail
-          git show b46917ec9da0cf27a4ca0521335fe91928ee9209:.release_icons_00 > /tmp/icons.b64
-          python - <<'PY'
-          from pathlib import Path
-          import base64, hashlib
-          text = Path('/tmp/icons.b64').read_text(encoding='utf-8', errors='ignore')
-          raw = base64.b64decode(text, validate=False)
-          sha = hashlib.sha256(raw).hexdigest()
-          expected = 'a14761721e0c7dcf58d7baf6838eabce3e4a349a7142955c86bf8a704eb6a1c7'
-          if sha != expected:
-              raise SystemExit(f'Icon archive SHA mismatch: {sha}')
-          Path('/tmp/icons.zip').write_bytes(raw)
-          print('Verified icon archive:', sha, len(raw), 'bytes')
-          PY
-          rm -rf icons /tmp/icons_restore
-          mkdir -p /tmp/icons_restore
-          unzip -q /tmp/icons.zip -d /tmp/icons_restore
-          cp -a /tmp/icons_restore/icons ./icons
+          SNAP=f817f11a0868f0c3577909edd226aee5e0e7fee6
+          mkdir -p icons
+          for name in E N S W bird camera firetruck fuel hazard helicopter medical; do
+            git show "$SNAP:icon_data/${name}.png.b64" | tr -d '\r\n' | base64 -d > "icons/${name}.png"
+          done
+          cat > /tmp/icon-sha256.txt <<'EOF'
+          d121eadd22d0ca1bf65d5d4134d36c65ad2c3525ce6db76297e67c28b2006d9d  icons/E.png
+          5068fad4a5f924f40b3d9b5a7ad1e967e32ef254088c563695138ed8eb9cfbcc  icons/N.png
+          53d3344d5703a9b5679a60d079d00717e6f2a9c14a6b1b384a347e47f32c93ee  icons/S.png
+          f2685cb071019bc33809f689db64a716af9d4c9738d7f1861ac5488d62980d5d  icons/W.png
+          945d678fd65ac63ce6021c5758a818304aeb71c68eaf0a5f5d53e1cda05195ed  icons/bird.png
+          052281d5514de26ed8a6f65067651388e80befd16cc91f5da23b8c80fe2cd513  icons/camera.png
+          5aa7b3518166bcf8fcb781e445fc2a27f0e4c1ecb2da3556837f732079aabad1  icons/firetruck.png
+          67459f140580cd3a5d33d1b2be797b3b3e62a390a3a260f8da775957963f87bb  icons/fuel.png
+          87593e79716d981e85c8b62ca26fe6d36751f2b32c318ca769e17e5553bec414  icons/hazard.png
+          0b0da3d7b4f15284930e01f0c2bc87bed9bec633990cb658fca579067aeb79e1  icons/helicopter.png
+          8b82756d82d3077158374fa66e5b2f0dd1d7aab1083f2b1b8c857cafa8b59ccb  icons/home.png
+          1074e4592318539a9c57f4c93ccdc61e9cf053bbfc974b72f17bd60306dcfa59  icons/medical.png
+          f4259bbf1999e835706a9b8bbc053c219f62f0e4d7423b15cbb656d4f5a010e9  icons/object.png
+          4e0e5685d48c651665229dc3bc65fff466db8e34c3935b707f27a91add07d2cd  icons/staging.png
+          e6fd1d7bb3c3de45bc5bb44a5fb410d8fc1c279c1d949ce9e94823a2d0e087c7  icons/water.png
+          EOF
+          sed -i 's/^          //' /tmp/icon-sha256.txt
+          sha256sum -c /tmp/icon-sha256.txt
           test "$(find icons -maxdepth 1 -type f -name '*.png' | wc -l)" -eq 15
 
       - name: Verify exact accepted v1.0 source
@@ -57,7 +64,7 @@ jobs:
           cp icons/*.png /tmp/Object_Factory_v1.0/icons/
           cp docs/OBJECT_FACTORY_GUIDE.md /tmp/Object_Factory_v1.0/README.md
           cp docs/ArcGIS_Earth_Object_Factory_v1.0_User_Manual.pdf /tmp/Object_Factory_v1.0/
-          printf '%s\n' 'ArcGIS Earth Object Factory v1.0' 'Commissioned 2026-10-29' '' 'Accepted source SHA-256:' 'e77e1866e7a87b9824ed6bb1cd0f830f52adb1a2872efe48ede13a581018aa00' '' 'Package rebuilt from the exact accepted v1.0 source and exact accepted 15-file PNG archive.' > /tmp/Object_Factory_v1.0/RELEASE_VERIFICATION.txt
+          printf '%s\n' 'ArcGIS Earth Object Factory v1.0' 'Commissioned 2026-10-29' '' 'Accepted source SHA-256:' 'e77e1866e7a87b9824ed6bb1cd0f830f52adb1a2872efe48ede13a581018aa00' '' 'Package rebuilt from the exact accepted v1.0 source and exact accepted 15-file PNG set.' > /tmp/Object_Factory_v1.0/RELEASE_VERIFICATION.txt
           rm -f releases/ArcGIS_Earth_Object_Factory_v1.0.zip releases/SHA256SUMS.txt
           cd /tmp
           zip -qr "$GITHUB_WORKSPACE/releases/ArcGIS_Earth_Object_Factory_v1.0.zip" Object_Factory_v1.0
